@@ -17,17 +17,17 @@ filtrarPeliculasPorPalabrasClave palabras = List.filter (peliculaTienePalabrasCl
 -- * distingue mayúsculas de minúsculas, pero debería encontrar a "Lion King" aunque escriba "kINg"
 -- * busca una coincidencia exacta, pero si escribís "Avengers Ultron" debería encontrar a "Avengers: Age Of Ultron"
 --
-peliculaTienePalabrasClave palabras pelicula = String.contains (String.toUpper palabras) (String.toUpper pelicula.title)
+peliculaTienePalabrasClave palabras pelicula = String.contains (mayus palabras) (mayus pelicula.title)
 
+mayus : String -> String
+mayus = String.toUpper
 
 -- **************
 -- Requerimiento: visualizar las películas según el género elegido en un selector;
 -- **************
 
 filtrarPeliculasPorGenero : String -> List Movie -> List Movie
-filtrarPeliculasPorGenero genero = List.filter (peliculaTieneGenero genero)
-
-peliculaTieneGenero genero pelicula = String.contains (String.toUpper genero) (String.toUpper (String.concat pelicula.genre))
+filtrarPeliculasPorGenero genero = List.filter ((List.member genero) << .genre)
 
 -- **************
 -- Requerimiento: filtrar las películas que sean aptas para menores de edad,
@@ -35,25 +35,25 @@ peliculaTieneGenero genero pelicula = String.contains (String.toUpper genero) (S
 -- **************
 
 filtrarPeliculasPorMenoresDeEdad : Bool -> List Movie -> List Movie
-filtrarPeliculasPorMenoresDeEdad mostrarSoloMenores = List.filter (peliculaEsParaMenor mostrarSoloMenores)
+filtrarPeliculasPorMenoresDeEdad mostrarSoloMenores listaPeliculas = if mostrarSoloMenores then List.filter .forKids listaPeliculas else listaPeliculas
 
-peliculaEsParaMenor mostrarSoloMenores pelicula = pelicula.forKids == True
 
 -- **************
 -- Requerimiento: ordenar las películas por su rating;
 -- **************
 
 ordenarPeliculasPorRating : List Movie -> List Movie
-ordenarPeliculasPorRating = List.reverse<<List.sortBy .rating 
+ordenarPeliculasPorRating = (List.reverse << List.sortBy .rating)
 
 -- **************
 -- Requerimiento: dar like a una película
 -- **************
 
 darLikeAPelicula : Int -> List Movie -> List Movie
-darLikeAPelicula id = completaAca --List.filter (darLike id)
+darLikeAPelicula id = List.map (sumarLikeAPelicula id)
 
---darLike id pelicula = if pelicula.id == id then pelicula.likes + 1
+sumarLikeAPelicula : Int -> Movie -> Movie
+sumarLikeAPelicula id peli = if id == peli.id then Movie peli.id peli.poster peli.title peli.rating peli.genre peli.link (peli.likes + 1) peli.matchPercentage peli.forKids peli.actors else peli
 
 -- **************
 -- Requerimiento: cargar preferencias a través de un popup modal,
@@ -62,16 +62,24 @@ darLikeAPelicula id = completaAca --List.filter (darLike id)
 -- **************
 
 calcularPorcentajeDeCoincidencia : Preferences -> List Movie -> List Movie
-calcularPorcentajeDeCoincidencia preferencias = filtrarPeliculasPorPalabrasClave preferencias.keywords << filtrarPeliculasPorGenero preferencias.genre << filtrarPeliculaPorActor preferencias.favoriteActor
+calcularPorcentajeDeCoincidencia preferencias listaPelis = List.map (calcularPorcentaje preferencias) listaPelis
 
-porcentajeTotal preferencias pelicula = porcentajePalabraClave preferencias pelicula + porcentajeGenero preferencias pelicula + porcentajeActor preferencias pelicula
+calcularPorcentaje : Preferences -> Movie -> Movie
+calcularPorcentaje preferencias peli = Movie peli.id peli.poster peli.title peli.rating peli.genre peli.link peli.likes (sumarPorcentaje preferencias  peli) peli.forKids peli.actors
 
-porcentajePalabraClave preferencias pelicula = if (peliculaTienePalabrasClave preferencias.keywords pelicula) then ((String.length (preferencias.keywords) * 100) / String.length (pelicula.title)) else 0
+sumarPorcentaje : Preferences -> Movie -> Int
+sumarPorcentaje preferencias peli = (contienePalabraClave preferencias.keywords peli.title) + (tieneActorPreferido preferencias.favoriteActor peli.actors) + (esGeneroPreferido preferencias.genre peli.genre)
 
-porcentajeGenero preferencias pelicula = if (peliculaTieneGenero preferencias.genre pelicula.genre) then 100 << (//) <<(List.length pelicula.genre) else 0
+contienePalabraClave : String -> String -> Int
+contienePalabraClave palabrasClave tituloPeli = List.foldl ((+) << (porcentajeCorrespondiente 20 (String.words tituloPeli))) 0 (String.words palabrasClave)
 
-filtrarPeliculaPorActor : String -> List Movie ->List Movie
-filtrarPeliculaPorActor actor = List.filter (peliculaTieneActor actor)
-peliculaTieneActor actor pelicula = String.contains (String.toUpper actor) (String.toUpper (String.concat pelicula.actors))
+esGeneroPreferido : String -> List String -> Int
+esGeneroPreferido generoPreferido generoPeli = porcentajeCorrespondiente 60 generoPeli generoPreferido 
 
-porcentajeActor preferencias pelicula = if (peliculaTieneActor preferencias.favoriteActor) then (100 / List.length pelicula.actors) else 0
+tieneActorPreferido : String -> List String -> Int
+tieneActorPreferido actorPreferido actorPeli = porcentajeCorrespondiente 50 actorPeli actorPreferido 
+
+porcentajeCorrespondiente : Int -> List String ->  String -> Int 
+porcentajeCorrespondiente percent listaPalabras palabras = if ((List.member (mayus palabras) (listaAMayus listaPalabras))) then percent else 0
+
+listaAMayus = List.map mayus
